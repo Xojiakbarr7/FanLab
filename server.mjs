@@ -18,6 +18,7 @@ if(process.env.DATABASE_URL){
 }
 await query('CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE,name TEXT NOT NULL,grade TEXT NOT NULL,password_hash TEXT NOT NULL)');
 await query('CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires_at BIGINT NOT NULL)');
+await query('CREATE TABLE IF NOT EXISTS avatars (user_id TEXT PRIMARY KEY REFERENCES users(id), image TEXT NOT NULL)');
 await query('CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires_at)');
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const grades=['5-sinf','6-sinf','7-sinf','8-sinf','9-sinf','10-sinf','11-sinf','Talaba','Mustaqil o‘rganuvchi'];
@@ -38,7 +39,7 @@ async function newSession(res,user){
 }
 const attempts=new Map();
 setInterval(()=>{for(const [key,value] of attempts)if(value.until<Date.now())attempts.delete(key)},60000).unref();
-async function body(req){let raw='';for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>16384)throw Object.assign(Error('Too large'),{status:413})}return new URLSearchParams(raw)}
+async function body(req, maximum=16384){let raw='';for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>maximum)throw Object.assign(Error('Too large'),{status:413})}return new URLSearchParams(raw)}
 const mime={'.js':'text/javascript','.css':'text/css','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.txt':'text/plain'};
 export const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://localhost'), path=decodeURIComponent(url.pathname);
@@ -49,6 +50,16 @@ export const server=http.createServer(async(req,res)=>{try{
   if(path==='/logout'){
    const t=cookie(req);if(t)await query('DELETE FROM sessions WHERE token_hash=$1',[hashToken(t)]);
    return redirect(res,'/login',{'Set-Cookie':`fanlab_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${production?'; Secure':''}`});
+  }
+  if(path==='/api/profile'){
+   const user=await userFor(req);if(!user)return redirect(res,'/login');
+   const data=await body(req,800000),name=(data.get('name')||'').trim(),grade=data.get('grade'),image=data.get('image');
+   if(name.length<2||name.length>60||!grades.includes(grade))return send(res,400,'Ism yoki ta’lim bosqichi noto‘g‘ri.');
+   if(image && (!/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image)||image.length>700000||!Buffer.from(image.split(',')[1],'base64').subarray(0,3).equals(Buffer.from([255,216,255]))))return send(res,400,'Rasm formati noto‘g‘ri.');
+   await query('UPDATE users SET name=$1,grade=$2 WHERE id=$3',[name,grade,user.id]);
+   if(data.get('remove')==='1')await query('DELETE FROM avatars WHERE user_id=$1',[user.id]);
+   else if(image)await query('INSERT INTO avatars(user_id,image) VALUES($1,$2) ON CONFLICT(user_id) DO UPDATE SET image=excluded.image',[user.id,image]);
+   return redirect(res,'/profile?saved=1');
   }
   if(!['/api/register','/api/login'].includes(path))return send(res,404,'Topilmadi');
   const key=req.socket.remoteAddress;const limit=attempts.get(key)||{count:0,until:Date.now()+900000};
@@ -71,6 +82,16 @@ export const server=http.createServer(async(req,res)=>{try{
   return await newSession(res,user);
  }
  if(!['GET','HEAD'].includes(req.method))return send(res,405,'Ruxsat etilmagan');
+ if(path==='/avatar'){
+  const user=await userFor(req);if(!user)return send(res,401,'');
+  const row=(await query('SELECT image FROM avatars WHERE user_id=$1',[user.id]))[0];
+  if(!row)return send(res,404,'');
+  return send(res,200,Buffer.from(row.image.split(',')[1],'base64'),{'Content-Type':'image/jpeg','Vary':'Cookie'});
+ }
+ if(path==='/profile'){
+  const user=await userFor(req);if(!user)return redirect(res,'/login');
+  return send(res,200,`<!doctype html><html lang="uz"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Profil · FanLab</title><link rel="stylesheet" href="/profile.css"><main><a href="/">← FanLab bosh sahifa</a><h1>Mening profilim</h1><p>O‘zingiz haqingizdagi ma’lumotlarni yangilang.</p>${url.searchParams.has('saved')?'<p role="status">O‘zgarishlar saqlandi ✓</p>':''}<form method="post" action="/api/profile"><div class="portrait"><img id="preview" src="/avatar" alt="Profil rasmi" onerror="this.style.visibility='hidden'"></div><label>Profil rasmini tanlash<input id="photo" type="file" accept="image/jpeg,image/png,image/webp"></label><p>JPG, PNG yoki WebP · 5 MB gacha</p><input type="hidden" name="image" id="image"><label><input type="checkbox" name="remove" value="1"> Rasmni olib tashlash</label><label>Ismingiz<input name="name" value="${escape(user.name)}" minlength="2" maxlength="60" required></label><label>Email<input value="${escape(user.email)}" disabled></label><label>Ta’lim bosqichi<select name="grade">${grades.map(g=>`<option ${g===user.grade?'selected':''}>${g}</option>`).join('')}</select></label><p id="error" role="alert"></p><button id="save">Saqlash</button></form><script src="/profile.js"></script></main></html>`);
+ }
  if(['/login','/register'].includes(path)){if(await userFor(req))return redirect(res,'/');return send(res,200,authPage(path==='/register'))}
  if(['/','/index.html','/experiments.html'].includes(path)){
   const user=await userFor(req);if(!user)return redirect(res,'/login');
@@ -79,7 +100,7 @@ export const server=http.createServer(async(req,res)=>{try{
   const script=`<script>window.FANLAB_STORAGE_PREFIX=${prefix}</script>`;
   html=html.includes('</head>')?html.replace('</head>',script+'</head>'):html.replace('<title>',script+'<title>');
   html=html.replace('Salom, izlanuvchi!',`Salom, ${escape(user.name)}!`).replace('Yosh izlanuvchi',escape(user.grade));
-  const bar=`<div style="display:flex;gap:16px;align-items:center;justify-content:flex-end;padding:10px 20px;background:#e7f3f3;color:#244e61;font:13px system-ui"><span>${escape(user.name)}</span><form method="post" action="/logout"><button style="cursor:pointer;padding:7px 12px">Hisobdan chiqish ↗</button></form></div>`;
+  const bar=`<div style="display:flex;gap:16px;align-items:center;justify-content:flex-end;padding:10px 20px;background:#fff;color:#244e61;font:13px system-ui"><a href="/profile" style="color:#10183d;font-weight:700">${escape(user.name)} · Profil</a><form method="post" action="/logout"><button style="cursor:pointer;padding:7px 12px">Hisobdan chiqish ↗</button></form></div>`;
   html=html.includes('<body>')?html.replace('<body>','<body>'+bar):html.replace('<main>',bar+'<main>');
   return send(res,200,html,{'Vary':'Cookie'});
  }
