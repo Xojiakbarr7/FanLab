@@ -21,7 +21,13 @@ test('registration, isolation, logout, static assets and restart persistence',as
   assert.equal((await post('/logout',{},cookie,'https://attacker.example')).status,403);
   const experiments=await(await get('/experiments.html',cookie)).text();assert.match(experiments,/experiments.js/);
   for(const file of ['lab3d.js','experiment-world.js','software-renderer.js','circuit-model.js','experiments.js','vendor/three.module.min.js','vendor/OrbitControls.js','assets/spring.png','assets/refraction.png'])assert.equal((await get('/'+file)).status,200,file);
-  await stop();await start();assert.equal((await get('/',cookie)).status,200);
+  assert.equal((await get('/profile')).status,303);
+  assert.equal((await get('/profile',cookie)).status,200);
+  assert.equal((await post('/api/profile',{name:'Changed',grade:'9-sinf',image:'data:image/jpeg;base64,bm90YW5pbWFnZQ=='},cookie)).status,400);
+  assert.equal((await post('/api/profile',{name:'Changed',grade:'9-sinf'},cookie,'https://attacker.example')).status,403);
+  assert.equal((await post('/api/profile',{name:'Changed',grade:'9-sinf'},cookie)).status,303);
+  assert.match(await(await get('/profile',cookie)).text(),/Changed/);
+  await stop();await start();assert.match(await(await get('/profile',cookie)).text(),/Changed/);assert.equal((await get('/',cookie)).status,200);
   await post('/logout',{},cookie);assert.equal((await get('/',cookie)).status,303);
   r=await post('/api/login',{email:'USER@example.com',password:'test-password'});assert.equal(r.status,303);
   const bytes=await readFile(join(dir,'db.sqlite'));assert.equal(bytes.includes(Buffer.from('test-password')),false);
