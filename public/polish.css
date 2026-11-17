@@ -19,3 +19,4 @@ input,select,textarea{accent-color:#f76b0b}input:focus,select:focus,textarea:foc
 @keyframes dialog-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.reveal-pending{opacity:1;transform:none}}
 @media(max-width:760px){button,.nav a,.mobile-nav a{min-height:44px}.mobile-nav a{justify-content:center}.subject h3{font-size:21px}.hero-art img{animation:none}}
+.ui-icon{display:inline-block;flex-shrink:0;transition:transform .2s}.nav a.active .ui-icon,.nav a:hover .ui-icon{filter:brightness(0) invert(1)}.icon-btn:hover .ui-icon{transform:rotate(-8deg)}
