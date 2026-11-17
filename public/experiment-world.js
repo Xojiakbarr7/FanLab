@@ -6,12 +6,12 @@ export class ExperimentWorld {
  constructor(host){
   this.host=host;this.scene=new T.Scene();this.scene.background=new T.Color(0xdce9ed);
   try{this.renderer=new T.WebGLRenderer({antialias:true})}catch{this.renderer=new SoftwareRenderer()}
-  const r=this.renderer;r.setPixelRatio(Math.min(devicePixelRatio,1.5));r.shadowMap.enabled=true;r.shadowMap.type=T.PCFSoftShadowMap;r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.1;
+  const r=this.renderer;r.setPixelRatio(Math.min(devicePixelRatio,1.5));r.shadowMap.enabled=true;r.shadowMap.type=T.PCFSoftShadowMap;r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.05;r.outputColorSpace=T.SRGBColorSpace;
   host.replaceChildren(r.domElement);r.domElement.setAttribute('aria-label','3D tajriba. Aylantirish uchun torting, yaqinlashtirish uchun g‘ildirak yoki ikki barmoqdan foydalaning.');r.domElement.tabIndex=0;
   this.camera=new T.PerspectiveCamera(38,1,.1,50);this.controls=new OrbitControls(this.camera,r.domElement);this.controls.enableDamping=true;this.controls.minDistance=3;this.controls.maxDistance=12;this.controls.maxPolarAngle=Math.PI*.49;this.controls.target.set(0,1.4,0);this.home();
-  this.scene.add(new T.HemisphereLight(0xeaf5ff,0x627881,2.3));const key=new T.DirectionalLight(0xffefda,3);key.position.set(-3,7,5);key.castShadow=true;key.shadow.mapSize.set(1024,1024);Object.assign(key.shadow.camera,{left:-5,right:5,top:5,bottom:-5});key.shadow.normalBias=.025;this.scene.add(key);
+  this.scene.add(new T.HemisphereLight(0xeaf5ff,0x627881,2.3));const key=new T.DirectionalLight(0xffefda,3);key.position.set(-3,7,5);key.castShadow=true;key.shadow.mapSize.set(innerWidth<760?1024:2048,innerWidth<760?1024:2048);key.shadow.radius=3;Object.assign(key.shadow.camera,{left:-5,right:5,top:5,bottom:-5});key.shadow.normalBias=.025;this.scene.add(key);
   if(!r.isSoftware){const pm=new T.PMREMGenerator(r),room=new RoomEnvironment();this.scene.environment=pm.fromScene(room,.04).texture;room.dispose();pm.dispose()}
-  this.metal=this.mat(0x9cacb1,.25,.8);this.dark=this.mat(0x294e5c,.42,.4);this.brass=this.mat(0xb28b43,.27,.7);this.wood=this.mat(0xc69758,.65);this.box(5,.15,3.5,this.mat(0xe6e9e4,.7),0,-.1,0,this.scene);
+  this.metal=this.mat(0xb9c4ca,.19,.88);this.dark=this.mat(0x294e5c,.42,.4);this.brass=this.mat(0xc49a51,.23,.82);this.wood=this.mat(0xc69758,.65);this.box(5,.15,3.5,this.mat(0xe6e9e4,.7),0,-.1,0,this.scene);
   this.group=new T.Group();this.scene.add(this.group);new ResizeObserver(()=>this.resize()).observe(host);this.resize();
  }
  mat(color,roughness=.4,metalness=0){return new T.MeshStandardMaterial({color,roughness,metalness})}
