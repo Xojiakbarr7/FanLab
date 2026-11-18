@@ -27,7 +27,18 @@ test('registration, isolation, logout, static assets and restart persistence',as
   assert.equal((await post('/api/profile',{name:'Changed',grade:'9-sinf'},cookie,'https://attacker.example')).status,403);
   assert.equal((await post('/api/profile',{name:'Changed',grade:'9-sinf'},cookie)).status,303);
   assert.match(await(await get('/profile',cookie)).text(),/Changed/);
+  const photo=await readFile(new URL('./fixtures/avatar.jpg',import.meta.url));
+  const photoData='data:image/jpeg;base64,'+photo.toString('base64');
+  assert.equal((await post('/api/profile',{name:'Changed',grade:'9-sinf',image:photoData},cookie)).status,303);
+  let avatar=await get('/avatar',cookie);assert.equal(avatar.headers.get('content-type'),'image/jpeg');assert.deepEqual(Buffer.from(await avatar.arrayBuffer()),photo);
+  assert.equal((await get('/avatar')).status,401);
+  const other=await post('/api/register',{name:'Other',grade:'Talaba',email:'other@example.com',password:'other-test-password'});
+  const otherCookie=other.headers.get('set-cookie').split(';')[0];assert.equal((await get('/avatar',otherCookie)).status,404);
+  assert.equal((await post('/api/profile',{name:'Changed',grade:'9-sinf',image:'data:image/jpeg;base64,'+'A'.repeat(700001)},cookie)).status,400);
+  for(const asset of ['icons/house.svg','icons/flask-conical.svg','polish.js','polish.css','profile.js','profile.css','assets/science-hero.jpg'])assert.equal((await get('/'+asset)).status,200,asset);
   await stop();await start();assert.match(await(await get('/profile',cookie)).text(),/Changed/);assert.equal((await get('/',cookie)).status,200);
+  assert.deepEqual(Buffer.from(await(await get('/avatar',cookie)).arrayBuffer()),photo);
+  assert.equal((await post('/api/profile',{name:'Changed',grade:'9-sinf',remove:'1'},cookie)).status,303);assert.equal((await get('/avatar',cookie)).status,404);
   await post('/logout',{},cookie);assert.equal((await get('/',cookie)).status,303);
   r=await post('/api/login',{email:'USER@example.com',password:'test-password'});assert.equal(r.status,303);
   const bytes=await readFile(join(dir,'db.sqlite'));assert.equal(bytes.includes(Buffer.from('test-password')),false);

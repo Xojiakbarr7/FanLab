@@ -99,7 +99,7 @@ export const server=http.createServer(async(req,res)=>{try{
   const prefix=JSON.stringify(`fanlab:${user.id}:`).replace(/</g,'\\u003c');
   const script=`<script>window.FANLAB_STORAGE_PREFIX=${prefix}</script>`;
   html=html.includes('</head>')?html.replace('</head>',script+'</head>'):html.replace('<title>',script+'<title>');
-  html=html.replace('Salom, izlanuvchi!',`Salom, ${escape(user.name)}!`).replace('Yosh izlanuvchi',escape(user.grade));
+  html=html.replace('Salom, izlanuvchi!',`Salom, ${escape(user.name)}!`).replace('Yosh izlanuvchi',escape(user.grade)).replace('Xush kelibsiz!',escape(user.name));
   const bar=`<div style="display:flex;gap:16px;align-items:center;justify-content:flex-end;padding:10px 20px;background:#fff;color:#244e61;font:13px system-ui"><a href="/profile" style="color:#10183d;font-weight:700">${escape(user.name)} · Profil</a><form method="post" action="/logout"><button style="cursor:pointer;padding:7px 12px">Hisobdan chiqish ↗</button></form></div>`;
   html=html.includes('<body>')?html.replace('<body>','<body>'+bar):html.replace('<main>',bar+'<main>');
   return send(res,200,html,{'Vary':'Cookie'});
